@@ -18,55 +18,7 @@ def get_bit_map(new_student, courses):
 def get_dcr(time_span, alpha=0.05):
     return math.exp(-alpha * time_span)
 
-#
-# # method to judge the dominance relationship between two sc_points indexed by a and b considering the decline
-# def dominate(student_a, student_b, latest_update):
-#     adb, bda = 1, 1
-#     timespan_a = latest_update - Bucket.latest_updates[enrollment_a]
-#     timespan_b = latest_update - Bucket.latest_updates[enrollment_b]
-#     point_a = Bucket.all_sc[enrollment_a]
-#     point_b = Bucket.all_sc[enrollment_b]
-#     dcr_a = get_dcr(timespan_a, Bucket.alpha)
-#     dcr_b = get_dcr(timespan_b, Bucket.alpha)
-#     for i in range(point_a.shape[0]):
-#         # only compare attributes except NAN
-#         if torch.isnan(point_a[i]) or torch.isnan(point_b[i]):
-#             continue
-#         if point_a[i] * dcr_a > point_b[i] * dcr_b:
-#             bda = 0
-#         if point_b[i] * dcr_b > point_a[i] * dcr_a:
-#             adb = 0
-#     # means point_b dominates point_a
-#     if bda == 1:
-#         return -1
-#     # means point_a dominates point_b
-#     elif adb == 1:
-#         return 1
-#     # means there is no dominance relation between a and b
-#     else:
-#         return 0
-#
-#
-# # get the bitmap of point which present the lack of attributes and be the key of the bucket dict in class KISkyline
-# # for example buckets['01010'] means the points in this bucket lack the attribution in col 1, 2 and 5
-#
-#
-# # method to compute new sc_point by the updating info
-# def compute_new_sc(updating_info, missing_rate):
-#     # TODO: This part of codes should be write soon and the format of updating_info should be concerned
-#     # TODO: Perhaps need to drop some val randomly in this part to utilize the bitmap function like this
-#     # numpy random drop values for NAN test(the dataset in fact lack nothing but the algorithm can work with NAN data)
-#     # enrollment_id = 1
-#     # new_point = torch.tensor([])
-#     # latest_update = 0
-#     # nattributes = new_point.shape
-#     # for i in range(nattributes):
-#     #     rd = torch.rand(1) * 100
-#     #     if rd.item() < missing_rate * 100:
-#     #         new_point[i] = None
-#     pass
-#
-#
+
 # class Bucket:
 #     # this dict records all of the sc_points all buckets
 #     # key:enrollment_id, val:sc_point_val
