@@ -1,8 +1,11 @@
 import datetime
+import random
 from Loader import load_data, get_updating_infos
 from Utils import get_bit_map, get_dcr
 import numpy as np
-import sys
+
+
+# import sys
 
 
 class Get_Skyline:
@@ -21,8 +24,12 @@ class Get_Skyline:
         :param: all_students[user_id][course_id][event]:
             the count number of a certain event in this sc_point
         """
-        # the local candidate in certain combination of courses, the key is bit_map, the val list of user_id
+        # the local candidate in certain combination of courses, the key is bit_map, the val is some user_ids
         self.courses_bucket = {}
+        # the graph to show the correlation of buckets, the key is bit_map, the val is some near by buckets' bit_map
+        self.bucket_graph = {}
+        # the daily updating objects for every user, the key is user_id and the val is his recently accessed object_ids
+        self.daily_objects = {}
         self.window_size = window_size  # the log window size
         self.latest_date = datetime.datetime.strptime("2013-10-27", "%Y-%m-%d")
         self.num_samples = num_samples
@@ -31,19 +38,24 @@ class Get_Skyline:
         self.log_data = load_data(self.num_samples)
         self.courses = self.log_data["course_id"].unique()  # courses records the different courses' course_id
         self.latest_pos = 0
-        self.course_events = {'navigate', 'access', 'problem', 'video'}  # Todo: will add all the key in the courses
-        self.savestdout = sys.stdout
-        fout = open("k=3,num_samples=1000000.txt", "a+")
-        sys.stdout = fout
-        print("courses = ", self.courses)
+        self.course_events = {'navigate', 'access', 'problem', 'video'}
+        self.maxlen_objs = 15
+        self.near_dis = 2
+
+        # self.savestdout = sys.stdout
+        # fout = open("k=3,num_samples=1000000.txt", "a+")
+        # sys.stdout = fout
+        print("Show all courses: ", self.courses)
+        print("######################################################################################")
 
     def run(self):
 
         # update the infos
-        self.updating_infos, self.latest_pos, self.latest_date = get_updating_infos(self.log_data, self.window_size,
-                                                                                    self.latest_pos, self.latest_date)
+        self.updating_infos, self.latest_pos, self.latest_date = get_updating_infos(
+            self.daily_objects, self.log_data, self.window_size, self.latest_pos, self.latest_date, self.maxlen_objs)
         print("The latest updating date is: ", self.latest_date)
         print("The len of updating_infos is: ", len(self.updating_infos))
+
         # to temporary record new students that learn more than k courses
         more_courses_students = {}
 
@@ -61,11 +73,13 @@ class Get_Skyline:
             # compute the bit_map of the new_student
             bit_map, k_positive = get_bit_map(new_student, self.courses)
             if k_positive < self.k:
-                # Todo: this brunch isn't be created well
+                # Todo: this branch isn't be created well
                 continue
             elif k_positive == self.k:
-                if bit_map not in self.courses_bucket:  # if the bucket don't have the bit_map bucket, then new one
-                    self.courses_bucket[bit_map] = {}
+                # if the bucket don't have the bit_map bucket
+                if bit_map not in self.courses_bucket:
+                    self.update_bucket_graph(bit_map, self.near_dis)  # update the bucket_graph
+                    self.courses_bucket[bit_map] = {}  # then add the new bucket
                 is_candidate = True  # is_candidate determine whether the new student can be a new candidate
                 for local_candidate_id in list(self.courses_bucket[bit_map]):
                     # Todo: the latest time didn't add
@@ -101,12 +115,20 @@ class Get_Skyline:
 
         n_candidates = 0
         print("The num of buckets: ", len(self.courses_bucket.keys()))
+        print("Show the he candidates in buckets:")
         print(self.courses_bucket)
+        # print("Show the he objects in daily_objects:")
+        # for student_id in self.daily_objects:
+        #     print(self.daily_objects[student_id])
         for bit_map in self.courses_bucket:
             n_candidates += len(self.courses_bucket[bit_map])
         print("The num of local candidates: ", n_candidates)
         if len(self.all_students) > 0:
             print("The partial of local candidates: ", n_candidates / len(self.all_students))
+
+        recommend_id = random.choice(list(self.all_students.keys()))
+        print("The recommendation for user_id", recommend_id, ":")
+        print(self.recommend(recommend_id))
 
     def create_new_student(self, delta_sc):
         # Todo: this function will add the student corresponding the delta's to the all_students
@@ -193,3 +215,20 @@ class Get_Skyline:
             else:
                 bit_map_and += '0'
         return bit_map_and == bit_map
+
+    def update_bucket_graph(self, new_bit_map, near_dis=2):
+        self.bucket_graph[new_bit_map] = {}
+        for bit_map in self.courses_bucket:
+            is_nearby = near_dis
+            for i in np.arange(np.size(self.courses)):
+                if bit_map[i] != new_bit_map[i]:
+                    is_nearby -= 1
+                if is_nearby < 0:
+                    break
+            if is_nearby >= 0:
+                self.bucket_graph[new_bit_map][bit_map] = 1
+                self.bucket_graph[bit_map][new_bit_map] = 1
+
+    def recommend(self, recommend_id):
+        # TODO: write the algorithm to make recommendation
+        pass
