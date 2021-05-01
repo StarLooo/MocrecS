@@ -12,7 +12,7 @@ from Get_Skyline_Update import Get_Skyline
 
 if __name__ == '__main__':
     # setting paras
-    k = 2
+    k = 3
     window_size = 1
     alpha = 0.05
     num_samples = 1000000
@@ -27,7 +27,7 @@ if __name__ == '__main__':
     model = Get_Skyline(k, window_size, alpha, num_samples)
     while model.latest_pos < num_samples:
         model.run()
-    print("######################################################################################")
+        print("######################################################################################")
 
     # # test
     # testlist = {}
