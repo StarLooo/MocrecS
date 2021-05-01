@@ -1,5 +1,6 @@
 import datetime
 import pandas as pd
+from Circular_Queue import Circular_Queue
 
 
 # load the data from csv
@@ -20,7 +21,7 @@ def load_data(num_samples):
 
 
 # get updating_infos by log_data
-def get_updating_infos(log_data, window_size, latest_pos, latest_date):
+def get_updating_infos(daily_objects, log_data, window_size, latest_pos, latest_date, maxlen_objs=15):
     updating_infos = {}
     latest_date = latest_date + datetime.timedelta(days=window_size)
     nrow = log_data.shape[0]
@@ -34,6 +35,12 @@ def get_updating_infos(log_data, window_size, latest_pos, latest_date):
         user_id = new_log['user_id']
         course_id = new_log['course_id']
         event = new_log['event']
+        object_id = new_log['object_id']
+        # updating the daily_objects
+        if user_id not in daily_objects:
+            daily_objects[user_id] = Circular_Queue(maxlen_objs)
+        daily_objects[user_id].enQueue(object_id)
+        # updating the updating_infos
         if (user_id, course_id) in updating_infos:
             if event in updating_infos[(user_id, course_id)]:
                 updating_infos[(user_id, course_id)][event] += 1
