@@ -1,2 +1,2 @@
-this file is made by zt on local library
-this just a test file
+From StarLu to Tanthen:
+you should pull this latest version of projects and finish the part of recommendation
