@@ -19,44 +19,6 @@ def get_dcr(time_span, alpha=0.05):
     return math.exp(-alpha * time_span)
 
 
-def recommendation(objects, bucket_map, student_bit_map, courses_bucket):
-    """
-
-    :return: a list of the this bit_map's recommendation objects
-    """
-    node = {}
-    parameter1 = 0.5
-    parameter2 = 0.5
-
-    for bit_map in bucket_map[student_bit_map]:
-        len1 = bucket_map.len
-        for student in courses_bucket[bit_map]:
-            len2 = courses_bucket.len
-            for obj in objects[student]:
-                if obj not in node:
-                    node[obj] = parameter2/(len1*len2)
-                else:
-                    node[obj] += parameter2/(len1*len2)
-    for student in courses_bucket[student_bit_map]:
-        len1 = courses_bucket
-        for obj in objects[student]:
-            if obj not in node:
-                node[obj] = parameter1/len1
-            else:
-                node[obj] += parameter1/len1
-    result = []
-    num = 0
-    for obj in node:
-        if num <= 6:
-            result.append(obj)
-            num += 1
-        else:
-            for i in range(0, 7):
-                if node[obj] > node[result[i]]:
-                    result[i] = obj
-    return result
-
-
 # class Bucket:
 #     # this dict records all of the sc_points all buckets
 #     # key:enrollment_id, val:sc_point_val
