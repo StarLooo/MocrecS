@@ -43,7 +43,7 @@ class Get_Skyline:
         self.near_dis = 2
 
         # self.savestdout = sys.stdout
-        # fout = open("k=3,num_samples=1000000.txt", "a+")
+        # fout = open("k=2,num_samples=1000000.txt", "a+")
         # sys.stdout = fout
         print("Show all courses: ", self.courses)
         print("######################################################################################")
@@ -67,18 +67,20 @@ class Get_Skyline:
             new_student_id = delta_sc[0]  # new_student_id is the user_id of the student like 23551
             if new_student_id not in self.all_students:  # decide whether the student is an old point
                 new_student = self.create_new_student(delta_sc)  # if is not the old point ,then new one
-            else:  # Todo: maybe the structure above and below can be simplified
+            else:
                 new_student = self.update_old_student(delta_sc)  # if is an old one, then update it
 
             # compute the bit_map of the new_student
             bit_map, k_positive = get_bit_map(new_student, self.courses)
+            # print("The bit_map of this new_student", bit_map)
+
             if k_positive < self.k:
                 # Todo: this branch isn't be created well
                 continue
             elif k_positive == self.k:
                 # if the bucket don't have the bit_map bucket
                 if bit_map not in self.courses_bucket:
-                    self.update_bucket_graph(bit_map, self.near_dis)  # update the bucket_graph
+                    self.update_bucket_graph(bit_map, k_positive, self.near_dis)  # update the bucket_graph
                     self.courses_bucket[bit_map] = {}  # then add the new bucket
                 is_candidate = True  # is_candidate determine whether the new student can be a new candidate
                 for local_candidate_id in list(self.courses_bucket[bit_map]):
@@ -115,17 +117,16 @@ class Get_Skyline:
 
         n_candidates = 0
         print("The num of buckets: ", len(self.courses_bucket.keys()))
-        print("Show the he candidates in buckets:")
-        print(self.courses_bucket)
-        # print("Show the he objects in daily_objects:")
-        # for student_id in self.daily_objects:
-        #     print(self.daily_objects[student_id])
+        # print("Show the candidates in buckets:")
+        # print(self.courses_bucket)
         for bit_map in self.courses_bucket:
             n_candidates += len(self.courses_bucket[bit_map])
-        print("The num of local candidates: ", n_candidates)
         if len(self.all_students) > 0:
+            print("The num of local candidates:", n_candidates)
             print("The partial of local candidates: ", n_candidates / len(self.all_students))
-
+        # print("Show the objects in daily_objects:")
+        # for student_id in self.daily_objects:
+        #     print(self.daily_objects[student_id])
         recommend_id = random.choice(list(self.all_students.keys()))
         print("The recommendation for user_id", recommend_id, ":")
         print(self.recommend(recommend_id))
@@ -216,19 +217,78 @@ class Get_Skyline:
                 bit_map_and += '0'
         return bit_map_and == bit_map
 
-    def update_bucket_graph(self, new_bit_map, near_dis=2):
-        self.bucket_graph[new_bit_map] = {}
+    def update_bucket_graph(self, new_bit_map, k_positive, near_dis=2):
+        if k_positive == self.k:
+            # true bucket
+            self.bucket_graph[new_bit_map] = {}
         for bit_map in self.courses_bucket:
-            is_nearby = near_dis
+            is_nearby = 0
             for i in np.arange(np.size(self.courses)):
-                if bit_map[i] != new_bit_map[i]:
-                    is_nearby -= 1
-                if is_nearby < 0:
-                    break
-            if is_nearby >= 0:
-                self.bucket_graph[new_bit_map][bit_map] = 1
-                self.bucket_graph[bit_map][new_bit_map] = 1
+                if bit_map[i] == 1 and new_bit_map[i] == 1:
+                    is_nearby += 1
+            if is_nearby >= self.k - near_dis:
+                self.bucket_graph[new_bit_map] = {}
+                if k_positive == self.k:
+                    self.bucket_graph[new_bit_map][bit_map] = 1
+                    self.bucket_graph[bit_map][new_bit_map] = 1
+                else:
+                    # visual bucket for k_positive != self.k
+                    if new_bit_map not in self.bucket_graph:
+                        self.bucket_graph[new_bit_map] = {[bit_map]: 1}
+                    else:
+                        self.bucket_graph[new_bit_map][bit_map] = 1
 
     def recommend(self, recommend_id):
-        # TODO: write the algorithm to make recommendation
-        pass
+        recommend_bit_map, k_positive = get_bit_map(self.all_students[recommend_id], self.courses)
+        print("recommend_bit_map is:", recommend_bit_map)
+        # print("show the bucket_graph:", self.bucket_graph)
+        weight = {}
+        w_local = 0
+        if k_positive == self.k:
+            w_local = 0.5
+            # compute weight of objects from local_candidate in local bucket
+            num_local_candidate = len(self.courses_bucket[recommend_bit_map])
+            # print("num_local_candidate is:", num_local_candidate)
+            for local_candidate in self.courses_bucket[recommend_bit_map]:
+                for obj in self.daily_objects[local_candidate].queue:
+                    if obj not in weight:
+                        weight[obj] = w_local / num_local_candidate
+                    else:
+                        weight[obj] += w_local / num_local_candidate
+        else:
+            self.update_bucket_graph(recommend_bit_map, k_positive, self.near_dis)  # update the bucket_graph
+
+        w_near = 1 - w_local
+        if recommend_bit_map in self.bucket_graph:
+            num_near_bucket = len(self.bucket_graph[recommend_bit_map])
+            # print("num_near_bucket is:", num_near_bucket)
+            # compute weight of objects from near_candidate in near bucket
+            for bit_map in self.bucket_graph[recommend_bit_map]:
+                num_near_candidate = len(self.courses_bucket[bit_map])
+                # print("num_near_candidate is:", num_near_candidate)
+                for near_candidate in self.courses_bucket[bit_map]:
+                    for obj in self.daily_objects[near_candidate].queue:
+                        if obj not in weight:
+                            weight[obj] = w_near / (num_near_bucket * num_near_candidate)
+                        else:
+                            weight[obj] += w_near / (num_near_bucket * num_near_candidate)
+
+        recommendation_list = []
+        total = 0
+        # TODO: use small_root_heap may be faster, but for convenience we use common wat
+        # TODO: THIS PART IS TOTALLY WRONG!
+        for obj in weight:
+            if total <= 6:
+                recommendation_list.append(obj)
+                total += 1
+            else:
+                min_val = 1000000
+                min_pos = -1
+                # find min_val in recommendation_list
+                for i in np.arange(7):
+                    if min_val > weight[obj]:
+                        min_val = weight[obj]
+                        min_pos = i
+                if weight[obj] > min_val:
+                    recommendation_list[min_pos] = obj
+        return recommendation_list
