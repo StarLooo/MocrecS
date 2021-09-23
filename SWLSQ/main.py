@@ -2,7 +2,7 @@
 import datetime
 import os
 import pickle
-from MySkyline.Get_Skyline_Update import Sliding_Window_Local_k_Skyline_Query
+from SWLSQ.Get_Skyline_Update import Sliding_Window_Local_k_Skyline_Query
 
 if __name__ == '__main__':
     # setting paras

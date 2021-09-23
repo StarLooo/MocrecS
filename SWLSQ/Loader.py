@@ -1,3 +1,4 @@
+# -*- coding:utf-8 -*-
 import datetime
 import pandas as pd
 from Circular_Queue import Circular_Queue
