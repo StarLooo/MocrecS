@@ -1,10 +1,12 @@
 # -*- coding:utf-8 -*-
+import datetime
 import math
 import random
 import time
+
 import numpy as np
-import datetime
 import pandas as pd
+
 from Circular_Queue import Circular_Queue
 
 
@@ -42,7 +44,7 @@ class Sliding_Window_Local_k_Skyline_Query:
         # the key of this structure is delta_s, the value is latest update time of this tuple
         self.latest_update_time = {}
         self.latest_position = 0
-        self.maxlen_objs = 15
+        self.maxlen_objs = 30
         self.near_dis = 2
         self.num_collision = 0  # record the num of object_id collision
         self.collision_dict = {}  # record the adjust of object_id collision
@@ -368,7 +370,11 @@ class Sliding_Window_Local_k_Skyline_Query:
                         recent_objs = np.array(self.recent_recommend[recommend_id].queue)
                         repeat_num = np.sum(recent_objs[recent_objs == obj])
                         assert repeat_num >= 0
-                        boredom_ratio = 1.0 / (1 + 2 * repeat_num)
+                        if repeat_num > 0:
+                            boredom_ratio = 1.0 / (1 + 2 * repeat_num)
+                            boredom_ratio = 0.0
+                        else:
+                            boredom_ratio = 1.0
                     else:
                         boredom_ratio = 1.0
                     if obj not in weight:
@@ -395,7 +401,10 @@ class Sliding_Window_Local_k_Skyline_Query:
                         recent_objs = np.array(self.recent_recommend[recommend_id].queue)
                         repeat_num = np.sum(recent_objs[recent_objs == obj])
                         assert repeat_num >= 0
-                        boredom_ratio = 1.0 / (1 + 2 * repeat_num)
+                        if repeat_num > 0:
+                            boredom_ratio = 1.0 / (1 + 2 * repeat_num)
+                        else:
+                            boredom_ratio = 1.0
                     else:
                         boredom_ratio = 1.0
                     if obj not in weight:
@@ -420,11 +429,19 @@ class Sliding_Window_Local_k_Skyline_Query:
                         min_pos = i
                 if weight[obj] > min_val:
                     recommendation_list[min_pos] = obj
+        # sort by weight
+        recommend_obj_weight_list = []
+        for recommend_obj in recommendation_list:
+            recommend_obj_weight_list.append([recommend_obj, weight[recommend_obj]])
+        recommend_obj_weight_array = np.array(recommend_obj_weight_list)
+        recommendation_list = list(
+            recommend_obj_weight_array[np.argsort(-recommend_obj_weight_array[:, 1])].astype(int)[:, 0])
 
         for recommend_obj in recommendation_list:
             if recommend_id not in self.recent_recommend.keys():
                 self.recent_recommend[recommend_id] = Circular_Queue(self.maxlen_objs)
-            self.recent_recommend[recommend_id].enQueue(recommend_id)
+            self.recent_recommend[recommend_id].enQueue(recommend_obj)
+
         return recommendation_list
 
     # for local usage
