@@ -368,7 +368,7 @@ class Sliding_Window_Local_k_Skyline_Query:
                         recent_objs = np.array(self.recent_recommend[recommend_id].queue)
                         repeat_num = np.sum(recent_objs[recent_objs == obj])
                         assert repeat_num >= 0
-                        boredom_ratio = 1.0 / (1 + repeat_num)
+                        boredom_ratio = 1.0 / (1 + 2 * repeat_num)
                     else:
                         boredom_ratio = 1.0
                     if obj not in weight:
@@ -391,11 +391,11 @@ class Sliding_Window_Local_k_Skyline_Query:
                         print("near_candidate, course_id, obj_id", near_candidate, course_id, obj)
                     time_span = (self.latest_date - self.latest_update_time[(near_candidate, course_id)]).days
                     dcr = self.get_decrease_rate(time_span)
-                    if recommend_id in self.recent_recommend.keys() and obj in self.recent_recommend[recommend_id]:
+                    if recommend_id in self.recent_recommend.keys():
                         recent_objs = np.array(self.recent_recommend[recommend_id].queue)
                         repeat_num = np.sum(recent_objs[recent_objs == obj])
                         assert repeat_num >= 0
-                        boredom_ratio = 1.0 / (1 + repeat_num)
+                        boredom_ratio = 1.0 / (1 + 2 * repeat_num)
                     else:
                         boredom_ratio = 1.0
                     if obj not in weight:

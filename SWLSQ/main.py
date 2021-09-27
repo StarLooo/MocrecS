@@ -23,15 +23,21 @@ if __name__ == '__main__':
     # 1262, 22567, 79874, 45578, 13636, 53735, 1231, 4216, 79744, 169, 79686, 79779, 79732, 1775, 79815, 2202,
     # 2189, 44021, 4380, 5576, 1594, 2094, 562, 5200, 2733, 2700, 2430]
     actual_days, all_users_id_list, active_users_id_list, now_date = model.update_k_days(k=210, DEBUG=True)
-    for recommend_id in active_users_id_list:
-        recommend_list = model.recommend(recommend_id=recommend_id)
-        if len(recommend_list) == 0:
-            print("当前可用于推荐的数据过少，请等待数据量累计至足够用于推荐！")
-        else:
-            print("recommend_id:", recommend_id)
-            print("该用户的今日推荐列表如下：")
-            print(recommend_list)
-        os.system("pause")
+    # loop_flag = True
+    # while loop_flag:
+    #     actual_days, all_users_id_list, active_users_id_list, now_date = model.update_k_days(k=1, DEBUG=True)
+    #     for recommend_id in active_users_id_list:
+    #         recommend_list = model.recommend(recommend_id=recommend_id)
+    #         if len(recommend_list) == 0:
+    #             print("当前可用于推荐的数据过少，请等待数据量累计至足够用于推荐！")
+    #         else:
+    #             print("recommend_id:", recommend_id)
+    #             print("该用户的今日推荐列表如下：")
+    #             print(recommend_list)
+    #         # os.system("pause")
+    #     if actual_days == 0:
+    #         loop_flag = False
+    model.run(if_test=False)
 
     os.system("pause")
 
