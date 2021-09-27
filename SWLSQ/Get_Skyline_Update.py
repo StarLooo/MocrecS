@@ -34,6 +34,8 @@ class Sliding_Window_Local_k_Skyline_Query:
         self.bucket_graph = {}
         # the daily updating objects for every user, the key is user_id and the val is his recently accessed object_ids
         self.daily_objects = {}
+        # the key of object_to_course is obj_id and it's val is relative course_id
+        self.object_to_course = {}
         self.latest_date = datetime.datetime.strptime("2013-10-27", "%Y-%m-%d")
         # the key of this structure is delta_s, the value is latest update time of this tuple
         self.latest_update_time = {}
@@ -91,6 +93,11 @@ class Sliding_Window_Local_k_Skyline_Query:
             course_id = new_log['course_id']
             event = new_log['event']
             object_id = new_log['object_id']
+            if object_id not in self.object_to_course.keys():
+                self.object_to_course[object_id] = course_id
+            else:
+                if self.object_to_course[object_id] != course_id
+                    print(object_id)
             # updating the daily_objects
             if user_id not in self.daily_objects:
                 self.daily_objects[user_id] = Circular_Queue(self.maxlen_objs)
@@ -105,59 +112,7 @@ class Sliding_Window_Local_k_Skyline_Query:
                 self.updating_infos[(user_id, course_id)] = {event: 1}
             self.latest_position += 1
 
-    def run(self, if_test=True):
-        while self.latest_position < self.num_samples:
-            self.skyline_update()
-            if if_test:
-                n_candidates = 0
-                n_bucket = len(self.courses_buckets.keys())
-                self.date_num_bucket[self.latest_date] = n_bucket
-                for bit_map in self.courses_buckets:
-                    n_candidates += len(self.courses_buckets[bit_map])
-                if n_bucket > 0:
-                    self.date_num_candidate[self.latest_date] = n_candidates
-                    self.date_partial_candidate[self.latest_date] = round(n_candidates / n_bucket, 4)
-                else:
-                    self.date_num_candidate[self.latest_date] = 0
-                    self.date_partial_candidate[self.latest_date] = 0
-                recommend_start_time = time.perf_counter_ns()
-                choice_list = list(self.users_courses_events_dict.keys())
-                # 随机选择100人作推荐，来做测试
-                for _ in np.arange(100):
-                    lack_cnt = 0
-                    recommend_id = random.choice(choice_list)
-                    self.daily_recommendation[self.latest_date] = {}
-                    recommend_list = self.recommend(recommend_id)
-                    if len(recommend_list) < 6:
-                        lack_cnt += 1
-                    lack_ratio = lack_cnt / 100
-                    if lack_cnt > 10:
-                        print("lack_cnt of", self.latest_date, ":", lack_cnt)
-                    self.daily_recommendation[self.latest_date][recommend_id] = recommend_list
-                recommend_end_time = time.perf_counter_ns()
-                self.date_recommend_time[self.latest_date] = round((recommend_end_time - recommend_start_time) / 100,
-                                                                   2)  # 单位为ns
-            else:
-                print("------------------------------------------------------------------")
-                print("当前日期:", self.latest_date)
-                print("当前所有用户的id如下：")
-                print(list(self.users_courses_events_dict.keys()))
-                loop_flag = True
-                while loop_flag:
-                    print("请输入想要推荐的用户的id:")
-                    user_id = int(input())
-                    if user_id in self.users_courses_events_dict.keys():
-                        recommend_list = self.recommend(user_id)
-                        if len(recommend_list) == 0:
-                            print("当前可用于推荐的数据过少，请等待数据量累计至足够用于推荐！")
-                        else:
-                            print("该用户的今日推荐列表如下：")
-                            print(recommend_list)
-                        loop_flag = False
-                    else:
-                        print("输入的用户id不合法，请重新输入！")
-
-    # skyline更新部分
+    # skyline update func
     def skyline_update(self):
         # -----------------------------------skyline更新部分-----------------------------------
         skyline_update_start_time = time.perf_counter()
@@ -228,6 +183,7 @@ class Sliding_Window_Local_k_Skyline_Query:
         self.date_skyline_time[self.latest_date] = round(1000 * (skyline_update_end_time - skyline_update_start_time),
                                                          2)  # 单位为ms
 
+    # create new user
     def create_new_user(self, user_course_tuple):
         # record the latest update time for the new point
         self.latest_update_time[user_course_tuple] = self.latest_date
@@ -237,6 +193,7 @@ class Sliding_Window_Local_k_Skyline_Query:
         self.users_courses_events_dict[user_id] = {course_id: self.updating_infos[user_course_tuple]}
         return self.users_courses_events_dict[user_id]
 
+    # update new user
     def update_old_user(self, user_course_tuple):
         # update the latest update time of the old point
         self.latest_update_time[user_course_tuple] = self.latest_date
@@ -275,6 +232,7 @@ class Sliding_Window_Local_k_Skyline_Query:
                 bit_map += '0'
         return bit_map, positive_num
 
+    # func to judge k-dominate relation
     def k_dominate(self, user_a_id, user_b_id, bit_map):
         dim_adb, dim_bda = 0, 0
         nevent_adb, nevent_bda = np.zeros(np.size(self.courses)), np.zeros(np.size(self.courses))
@@ -327,62 +285,93 @@ class Sliding_Window_Local_k_Skyline_Query:
                 bit_map_and += '0'
         return bit_map_and == bit_map
 
+    # update bucket graph
     def update_bucket_graph(self, new_bit_map, k_positive):
+        print("bucket_graph:", self.bucket_graph)
         if k_positive == self.k:
             # true bucket
-            self.bucket_graph[new_bit_map] = {}
+            if new_bit_map not in self.bucket_graph.keys():
+                self.bucket_graph[new_bit_map] = {}
+            else:
+                return
         for bit_map in self.courses_buckets:
+            if bit_map == new_bit_map:
+                continue
             both_learn_num = 0
             for i in np.arange(np.size(self.courses)):
                 if bit_map[i] == 1 and new_bit_map[i] == 1:
                     both_learn_num += 1
             if both_learn_num >= self.k - self.near_dis:
-                self.bucket_graph[new_bit_map] = {}
                 # true bucket，双向连接，互为邻居
                 if k_positive == self.k:
                     self.bucket_graph[new_bit_map][bit_map] = 1
                     self.bucket_graph[bit_map][new_bit_map] = 1
                 # visual bucket，只从虚拟桶单向连接到真实桶
                 else:
+                    # if new_bit_map not in self.bucket_graph:
+                    #     self.bucket_graph[new_bit_map] = {[bit_map]: 1}
+                    # else:
+                    #     self.bucket_graph[new_bit_map][bit_map] = 1
                     if new_bit_map not in self.bucket_graph:
-                        self.bucket_graph[new_bit_map] = {[bit_map]: 1}
-                    else:
-                        self.bucket_graph[new_bit_map][bit_map] = 1
+                        self.bucket_graph[new_bit_map] = {}
+                    self.bucket_graph[new_bit_map][bit_map] = 1
 
+    # get the recommend_list of user whose id is recommend_id
     def recommend(self, recommend_id):
+        if recommend_id not in self.users_courses_events_dict.keys():
+            print("id为", recommend_id, "的用户没有学习记录，推荐对象不存在！")
+            assert False
+
         recommend_bit_map, positive_num = self.get_bit_map(self.users_courses_events_dict[recommend_id])
-        # print("recommend_bit_map is:", recommend_bit_map)
-        # print("show the bucket_graph:", self.bucket_graph)
+        self.update_bucket_graph(recommend_bit_map, positive_num)  # update the bucket_graph
+        print("recommend_bit_map is:", recommend_bit_map)
+        print("show the bucket_graph:", self.bucket_graph)
+
+        if recommend_bit_map not in self.bucket_graph.keys():
+            # 数据量不够
+            return []
+
+        num_near_bucket = len(self.bucket_graph[recommend_bit_map])
+        print("num_near_bucket is:", num_near_bucket)
         weight = {}
-        w_local = 0
+        hyper_param = 0.25
+        w_local = 1 / (1 + num_near_bucket * hyper_param)
+        w_near = w_local * hyper_param
         if positive_num == self.k:
-            w_local = 0.5
             # compute weight of objects from local_candidate in local bucket
             num_local_candidate = len(self.courses_buckets[recommend_bit_map])
-            # print("num_local_candidate is:", num_local_candidate)
+            print("num_local_candidate is:", num_local_candidate)
             for local_candidate in self.courses_buckets[recommend_bit_map]:
+                if local_candidate == recommend_id:
+                    continue
+                # print("local_candidate:", local_candidate)
+                # print(self.daily_objects[local_candidate].queue)
                 for obj in self.daily_objects[local_candidate].queue:
+                    course_id = self.object_to_course[obj]
+                    time_span = (self.latest_date - self.latest_update_time[(local_candidate, course_id)]).days
+                    dcr = self.get_decrease_rate(time_span)
                     if obj not in weight:
-                        weight[obj] = w_local / num_local_candidate
+                        weight[obj] = dcr * w_local / num_local_candidate
                     else:
-                        weight[obj] += w_local / num_local_candidate
-        else:
-            self.update_bucket_graph(recommend_bit_map, positive_num)  # update the bucket_graph
+                        weight[obj] += dcr * w_local / num_local_candidate
 
-        w_near = 1 - w_local
-        if recommend_bit_map in self.bucket_graph:
-            num_near_bucket = len(self.bucket_graph[recommend_bit_map])
-            # print("num_near_bucket is:", num_near_bucket)
-            # compute weight of objects from near_candidate in near bucket
-            for bit_map in self.bucket_graph[recommend_bit_map]:
-                num_near_candidate = len(self.courses_buckets[bit_map])
-                # print("num_near_candidate is:", num_near_candidate)
-                for near_candidate in self.courses_buckets[bit_map]:
-                    for obj in self.daily_objects[near_candidate].queue:
-                        if obj not in weight:
-                            weight[obj] = w_near / (num_near_bucket * num_near_candidate)
-                        else:
-                            weight[obj] += w_near / (num_near_bucket * num_near_candidate)
+        # compute weight of objects from near_candidate in near bucket
+        for bit_map in self.bucket_graph[recommend_bit_map]:
+            num_near_candidate = len(self.courses_buckets[bit_map])
+            # print("num_near_candidate is:", num_near_candidate)
+            for near_candidate in self.courses_buckets[bit_map]:
+                if near_candidate == recommend_id:
+                    continue
+                # print("near_candidate:", near_candidate)
+                # print(self.daily_objects[near_candidate].queue)
+                for obj in self.daily_objects[near_candidate].queue:
+                    course_id = self.object_to_course[obj]
+                    time_span = (self.latest_date - self.latest_update_time[(near_candidate, course_id)]).days
+                    dcr = self.get_decrease_rate(time_span)
+                    if obj not in weight:
+                        weight[obj] = dcr * w_near / num_near_candidate
+                    else:
+                        weight[obj] += dcr * w_near / num_near_candidate
 
         recommendation_list = []
         total = 0
@@ -402,3 +391,82 @@ class Sliding_Window_Local_k_Skyline_Query:
                 if weight[obj] > min_val:
                     recommendation_list[min_pos] = obj
         return recommendation_list
+
+    # for local usage
+    def run(self, if_test=True):
+        while self.latest_position < self.num_samples:
+            self.skyline_update()
+            if if_test:
+                n_candidates = 0
+                n_bucket = len(self.courses_buckets.keys())
+                self.date_num_bucket[self.latest_date] = n_bucket
+                for bit_map in self.courses_buckets:
+                    n_candidates += len(self.courses_buckets[bit_map])
+                if n_bucket > 0:
+                    self.date_num_candidate[self.latest_date] = n_candidates
+                    self.date_partial_candidate[self.latest_date] = round(n_candidates / n_bucket, 4)
+                else:
+                    self.date_num_candidate[self.latest_date] = 0
+                    self.date_partial_candidate[self.latest_date] = 0
+                recommend_start_time = time.perf_counter_ns()
+                choice_list = list(self.users_courses_events_dict.keys())
+                # 随机选择100人作推荐，来做测试
+                for _ in np.arange(100):
+                    lack_cnt = 0
+                    recommend_id = random.choice(choice_list)
+                    self.daily_recommendation[self.latest_date] = {}
+                    recommend_list = self.recommend(recommend_id)
+                    if len(recommend_list) < 6:
+                        lack_cnt += 1
+                    lack_ratio = lack_cnt / 100
+                    if lack_cnt > 10:
+                        print("lack_cnt of", self.latest_date, ":", lack_cnt)
+                    self.daily_recommendation[self.latest_date][recommend_id] = recommend_list
+                recommend_end_time = time.perf_counter_ns()
+                self.date_recommend_time[self.latest_date] = round((recommend_end_time - recommend_start_time) / 100,
+                                                                   2)  # 单位为ns
+            else:
+                print("------------------------------------------------------------------")
+                print("当前日期:", self.latest_date)
+                print("当前所有用户的id如下：")
+                print(list(self.users_courses_events_dict.keys()))
+                loop_flag = True
+                while loop_flag:
+                    print("请输入想要推荐的用户的id:")
+                    user_id = int(input())
+                    if user_id in self.users_courses_events_dict.keys():
+                        recommend_list = self.recommend(user_id)
+                        if len(recommend_list) == 0:
+                            print("当前可用于推荐的数据过少，请等待数据量累计至足够用于推荐！")
+                        else:
+                            print("该用户的今日推荐列表如下：")
+                            print(recommend_list)
+                        loop_flag = False
+                    else:
+                        print("输入的用户id不合法，请重新输入！")
+
+    # for MocrecS usage
+    def update_k_days(self, k, DEBUG=False):
+        actual_days = k  # 实际更新天数
+        for i in range(k):
+            if self.latest_position < self.num_samples:
+                self.skyline_update()
+            else:
+                if DEBUG:
+                    print("未检测到当日数据流，停止更新")
+                actual_days = i
+                break
+        all_users_id_list = list(self.users_courses_events_dict.keys())  # 当前所有有学习记录的用户的id列表
+        active_users_id_list = []  # 当前所有有学习记录包含k门及以上课程的用户的id列表
+        for user_id in all_users_id_list:
+            bit_map, positive_num = self.get_bit_map(self.users_courses_events_dict[user_id])
+            if positive_num >= self.k:
+                active_users_id_list.append(user_id)
+
+        now_date = self.latest_date  # 当前日期
+        if DEBUG:
+            print("------------------------------------------------------------------")
+            print("当前日期:", now_date)
+            print("当前所有活跃用户的id如下：")
+            print(active_users_id_list)
+        return actual_days, all_users_id_list, active_users_id_list, now_date
