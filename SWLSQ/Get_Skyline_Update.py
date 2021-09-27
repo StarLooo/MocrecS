@@ -32,8 +32,10 @@ class Sliding_Window_Local_k_Skyline_Query:
         self.courses_buckets = {}
         # the graph to show the correlation of buckets, the key is bit_map, the val is some near by buckets' bit_map
         self.bucket_graph = {}
-        # the daily updating objects for every user, the key is user_id and the val is his recently accessed object_ids
-        self.daily_objects = {}
+        # the recent updating objects for every user, the key is user_id and the val is his recently accessed object_ids
+        self.recent_objects = {}
+        # the recent recommend for every user, the key is user_id and the val is his recently recommend object_ids
+        self.recent_recommend = {}
         # the key of object_to_course is obj_id and it's val is relative course_id
         self.object_to_course = {}
         self.latest_date = datetime.datetime.strptime("2013-10-27", "%Y-%m-%d")
@@ -42,6 +44,8 @@ class Sliding_Window_Local_k_Skyline_Query:
         self.latest_position = 0
         self.maxlen_objs = 15
         self.near_dis = 2
+        self.num_collision = 0  # record the num of object_id collision
+        self.collision_dict = {}  # record the adjust of object_id collision
         # ------------------------------------------------------------------------------
         self.log_data = self.load_data(self.num_samples)
         # courses records the different courses' course_id
@@ -93,15 +97,26 @@ class Sliding_Window_Local_k_Skyline_Query:
             course_id = new_log['course_id']
             event = new_log['event']
             object_id = new_log['object_id']
+            old_object_id = object_id
             if object_id not in self.object_to_course.keys():
                 self.object_to_course[object_id] = course_id
             else:
-                if self.object_to_course[object_id] != course_id
-                    print(object_id)
-            # updating the daily_objects
-            if user_id not in self.daily_objects:
-                self.daily_objects[user_id] = Circular_Queue(self.maxlen_objs)
-            self.daily_objects[user_id].enQueue(object_id)
+                if self.object_to_course[object_id] != course_id:
+                    # print(object_id, "冲突", "正在自动调整")
+                    if (course_id, object_id) in self.collision_dict.keys():
+                        object_id = self.collision_dict[(course_id, object_id)]
+                    else:
+                        assert object_id < 5917
+                        new_object_id = 5917 + self.num_collision
+                        self.num_collision += 1
+                        self.collision_dict[(course_id, object_id)] = new_object_id
+                        object_id = new_object_id
+                        self.object_to_course[object_id] = course_id
+            assert self.object_to_course[object_id] == course_id
+            # updating the recent_objects
+            if user_id not in self.recent_objects:
+                self.recent_objects[user_id] = Circular_Queue(self.maxlen_objs)
+            self.recent_objects[user_id].enQueue(object_id)
             # updating the updating_infos
             if (user_id, course_id) in self.updating_infos:
                 if event in self.updating_infos[(user_id, course_id)]:
@@ -287,7 +302,6 @@ class Sliding_Window_Local_k_Skyline_Query:
 
     # update bucket graph
     def update_bucket_graph(self, new_bit_map, k_positive):
-        print("bucket_graph:", self.bucket_graph)
         if k_positive == self.k:
             # true bucket
             if new_bit_map not in self.bucket_graph.keys():
@@ -324,15 +338,15 @@ class Sliding_Window_Local_k_Skyline_Query:
 
         recommend_bit_map, positive_num = self.get_bit_map(self.users_courses_events_dict[recommend_id])
         self.update_bucket_graph(recommend_bit_map, positive_num)  # update the bucket_graph
-        print("recommend_bit_map is:", recommend_bit_map)
-        print("show the bucket_graph:", self.bucket_graph)
+        # print("recommend_bit_map is:", recommend_bit_map)
+        # print("show the bucket_graph:", self.bucket_graph)
 
         if recommend_bit_map not in self.bucket_graph.keys():
             # 数据量不够
             return []
 
         num_near_bucket = len(self.bucket_graph[recommend_bit_map])
-        print("num_near_bucket is:", num_near_bucket)
+        # print("num_near_bucket is:", num_near_bucket)
         weight = {}
         hyper_param = 0.25
         w_local = 1 / (1 + num_near_bucket * hyper_param)
@@ -340,20 +354,27 @@ class Sliding_Window_Local_k_Skyline_Query:
         if positive_num == self.k:
             # compute weight of objects from local_candidate in local bucket
             num_local_candidate = len(self.courses_buckets[recommend_bit_map])
-            print("num_local_candidate is:", num_local_candidate)
+            # print("num_local_candidate is:", num_local_candidate)
             for local_candidate in self.courses_buckets[recommend_bit_map]:
                 if local_candidate == recommend_id:
                     continue
                 # print("local_candidate:", local_candidate)
-                # print(self.daily_objects[local_candidate].queue)
-                for obj in self.daily_objects[local_candidate].queue:
+                # print(self.recent_objects[local_candidate].queue)
+                for obj in self.recent_objects[local_candidate].queue:
                     course_id = self.object_to_course[obj]
                     time_span = (self.latest_date - self.latest_update_time[(local_candidate, course_id)]).days
                     dcr = self.get_decrease_rate(time_span)
-                    if obj not in weight:
-                        weight[obj] = dcr * w_local / num_local_candidate
+                    if recommend_id in self.recent_recommend.keys():
+                        recent_objs = np.array(self.recent_recommend[recommend_id].queue)
+                        repeat_num = np.sum(recent_objs[recent_objs == obj])
+                        assert repeat_num >= 0
+                        boredom_ratio = 1.0 / (1 + repeat_num)
                     else:
-                        weight[obj] += dcr * w_local / num_local_candidate
+                        boredom_ratio = 1.0
+                    if obj not in weight:
+                        weight[obj] = boredom_ratio * dcr * w_local / num_local_candidate
+                    else:
+                        weight[obj] += boredom_ratio * dcr * w_local / num_local_candidate
 
         # compute weight of objects from near_candidate in near bucket
         for bit_map in self.bucket_graph[recommend_bit_map]:
@@ -363,15 +384,24 @@ class Sliding_Window_Local_k_Skyline_Query:
                 if near_candidate == recommend_id:
                     continue
                 # print("near_candidate:", near_candidate)
-                # print(self.daily_objects[near_candidate].queue)
-                for obj in self.daily_objects[near_candidate].queue:
+                # print(self.recent_objects[near_candidate].queue)
+                for obj in self.recent_objects[near_candidate].queue:
                     course_id = self.object_to_course[obj]
+                    if (near_candidate, course_id) not in self.latest_update_time.keys():
+                        print("near_candidate, course_id, obj_id", near_candidate, course_id, obj)
                     time_span = (self.latest_date - self.latest_update_time[(near_candidate, course_id)]).days
                     dcr = self.get_decrease_rate(time_span)
-                    if obj not in weight:
-                        weight[obj] = dcr * w_near / num_near_candidate
+                    if recommend_id in self.recent_recommend.keys() and obj in self.recent_recommend[recommend_id]:
+                        recent_objs = np.array(self.recent_recommend[recommend_id].queue)
+                        repeat_num = np.sum(recent_objs[recent_objs == obj])
+                        assert repeat_num >= 0
+                        boredom_ratio = 1.0 / (1 + repeat_num)
                     else:
-                        weight[obj] += dcr * w_near / num_near_candidate
+                        boredom_ratio = 1.0
+                    if obj not in weight:
+                        weight[obj] = boredom_ratio * dcr * w_near / num_near_candidate
+                    else:
+                        weight[obj] += boredom_ratio * dcr * w_near / num_near_candidate
 
         recommendation_list = []
         total = 0
@@ -390,6 +420,11 @@ class Sliding_Window_Local_k_Skyline_Query:
                         min_pos = i
                 if weight[obj] > min_val:
                     recommendation_list[min_pos] = obj
+
+        for recommend_obj in recommendation_list:
+            if recommend_id not in self.recent_recommend.keys():
+                self.recent_recommend[recommend_id] = Circular_Queue(self.maxlen_objs)
+            self.recent_recommend[recommend_id].enQueue(recommend_id)
         return recommendation_list
 
     # for local usage
@@ -428,8 +463,8 @@ class Sliding_Window_Local_k_Skyline_Query:
             else:
                 print("------------------------------------------------------------------")
                 print("当前日期:", self.latest_date)
-                print("当前所有用户的id如下：")
-                print(list(self.users_courses_events_dict.keys()))
+                # print("当前所有用户的id如下：")
+                # print(list(self.users_courses_events_dict.keys()))
                 loop_flag = True
                 while loop_flag:
                     print("请输入想要推荐的用户的id:")

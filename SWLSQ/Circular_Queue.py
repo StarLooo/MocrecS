@@ -1,4 +1,7 @@
 # -*- coding:utf-8 -*-
+import numpy as np
+
+
 class Circular_Queue(object):
 
     def __init__(self, size):
@@ -56,7 +59,11 @@ class Circular_Queue(object):
 
 # 测试
 if __name__ == '__main__':
-    cq = Circular_Queue(5)  # 定义一个大小为5的队列
-    for i in range(8):
-        cq.enQueue(i)
-        print(cq)
+    cq = Circular_Queue(size=5)  # 定义一个大小为5的队列
+    cq.enQueue(1)
+    cq.enQueue(3)
+    cq.enQueue(2)
+    cq.enQueue(1)
+    cq.enQueue(1)
+    cq = np.array(cq.queue)
+    print(np.sum(cq[cq == 1]))
